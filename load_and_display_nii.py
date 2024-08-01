@@ -14,6 +14,10 @@ class InteractiveSegment():
 
     img_data = np.array([])
     slice_index = 0
+    input_point = np.empty((0, 2), int)
+    input_label = np.empty((0,), int)
+    current_mask = np.array([])
+    saved_masks = {}
 
     predictor = setup_segment()
 
@@ -42,6 +46,11 @@ class InteractiveSegment():
         ax.axis('off')
         canvas.draw()
 
+    def clear_segment(self):
+        self.current_mask = np.array([])
+        self.input_point = np.empty((0, 2), int)
+        self.input_label = np.empty((0,), int)
+
     def convert_to_rgb(self, grayscale_slice):
         # Normalize the grayscale values to the range [0, 1]
         normalized_slice = (grayscale_slice - np.min(grayscale_slice)) / (
@@ -51,6 +60,27 @@ class InteractiveSegment():
         rgb_image = np.stack((normalized_slice,) * 3, axis=-1)
         rgb_image = rgb_image.astype(np.float32)  # Convert to float32
         return rgb_image
+
+    def all_cross_sectional_areas(self, pixel_area=1.0):
+        """
+        Calculate the cross-sectional areas for all saved masks.
+
+        Parameters:
+        pixel_area (float): The area of a single pixel. Default is 1.0.
+
+        Returns:
+        """
+        for key, mask_info in self.saved_masks.items():
+            mask = mask_info['mask']
+            mask_name = mask_info['name']
+            binary_mask = mask > 0
+
+            # Count the number of non-zero pixels
+            num_non_zero_pixels = np.sum(binary_mask)
+
+            # Calculate the cross-sectional area
+            cross_sectional_area = num_non_zero_pixels * pixel_area
+            self.saved_masks['key']['area'] = cross_sectional_area
 
     def on_scroll(self, event, ax, canvas):
         if event.delta > 0:
@@ -62,10 +92,25 @@ class InteractiveSegment():
     def on_click(self, event, ax, canvas):
         print(f' button: {event.button}')
         x, y = int(event.xdata), int(event.ydata)
+        self.input_point = np.append(self.input_point, [[x, y]], axis=0)
+        if event.button == 1:  # Left click
+            self.input_label = np.append(self.input_label, 1)
+        elif event.button == 3:  # Right click
+            self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        mask = segment_image(self.predictor, rgb_image, [[x, y]], [1])
-        segment.show_mask(mask, ax)
+        self.current_mask = segment_image(self.predictor, rgb_image, self.input_point, self.input_label, self.current_mask)
+        segment.show_mask(self.current_mask, ax)
         canvas.draw()
+
+    def on_keypress(self, event):
+        if event.keysym == 'BackSpace':
+            self.clear_segment()
+        elif event.char.isdigit() and 1 <= int(event.char) <= 9:
+            mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
+
+            self.saved_masks[int(event.char)]['mask'] = self.current_mask
+            self.saved_masks[int(event.char)]['name'] = mask_name
+            self.clear_segment()
 
 
 # Example usage
@@ -82,6 +127,8 @@ if __name__ == "__main__":
 
     root.bind("<MouseWheel>", lambda event: interactive_segment.on_scroll(event, ax, canvas))
     cid = canvas.mpl_connect("button_release_event", lambda event: interactive_segment.on_click(event, ax, canvas))
+    root.bind("<KeyPress>", lambda event: interactive_segment.on_keypress(event))
+
     print(f"Event connection ID: {cid}")
     root.mainloop()
 

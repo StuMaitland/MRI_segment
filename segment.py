@@ -98,17 +98,25 @@ def setup_segment():
     return predictor
 
 
-def segment_image(predictor, image, point_cooords, point_labels):
+def segment_image(predictor, image, point_cooords, point_labels, mask_input):
     predictor.set_image(image)
 
     input_point = np.array([point_cooords])
     input_label = np.array([point_labels])
 
-    masks, scores, logits = predictor.predict(
-        point_coords=input_point,
-        point_labels=input_label,
-        multimask_output=True,
-    )
+    if mask_input.size > 0:
+        masks, scores, logits = predictor.predict(
+            point_coords=input_point,
+            point_labels=input_label,
+            multimask_output=True,
+            mask_input=mask_input,
+        )
+    else:
+        masks, scores, logits = predictor.predict(
+            point_coords=input_point,
+            point_labels=input_label,
+            multimask_output=True,
+        )
     sorted_ind = np.argsort(scores)[::-1]
     masks = masks[sorted_ind]
     scores = scores[sorted_ind]
