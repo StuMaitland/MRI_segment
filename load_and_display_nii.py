@@ -43,6 +43,10 @@ class InteractiveSegment():
     def update_image(self, ax, canvas):
         ax.clear()
         ax.imshow(self.img_data[:, :, self.slice_index], cmap='bone')
+        if self.current_mask.size > 0:
+            mask_overlay = np.ma.masked_where(self.current_mask == 0, self.current_mask)
+            ax.imshow(mask_overlay, cmap='jet', alpha=0.5)
+
         ax.axis('off')
         canvas.draw()
 
@@ -99,7 +103,7 @@ class InteractiveSegment():
             self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
         self.current_mask = segment_image(self.predictor, rgb_image, self.input_point, self.input_label, self.current_mask)
-        segment.show_mask(self.current_mask, ax)
+        self.update_image(ax, canvas)
         canvas.draw()
 
     def on_keypress(self, event):
@@ -108,8 +112,13 @@ class InteractiveSegment():
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
             mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
 
-            self.saved_masks[int(event.char)]['mask'] = self.current_mask
-            self.saved_masks[int(event.char)]['name'] = mask_name
+            key = int(event.char)
+
+            if key not in self.saved_masks:
+                self.saved_masks[key] = {'mask': None, 'name': None}
+
+            self.saved_masks[key]['mask'] = self.current_mask
+            self.saved_masks[key]['name'] = mask_name
             self.clear_segment()
 
 
