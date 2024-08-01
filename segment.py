@@ -88,14 +88,17 @@ def show__best_mask(image, masks, scores, point_coords=None, box_coords=None, in
     plt.show()
 
 
-def segment_image(image, point_cooords, point_labels):
+def setup_segment():
     sam2_checkpoint = "/Users/stuartbman/GitHub/MRI_segment/checkpoints/sam2_hiera_large.pt"
     model_cfg = "sam2_hiera_l.yaml"
 
     sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="cpu")
 
     predictor = SAM2ImagePredictor(sam2_model)
+    return predictor
 
+
+def segment_image(predictor, image, point_cooords, point_labels):
     predictor.set_image(image)
 
     input_point = np.array([point_cooords])
@@ -111,5 +114,5 @@ def segment_image(image, point_cooords, point_labels):
     scores = scores[sorted_ind]
     logits = logits[sorted_ind]
 
-    show__best_mask(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
-    return masks[-1]
+    # show__best_mask(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
+    return masks[-1]  # Return mask with lowest error
