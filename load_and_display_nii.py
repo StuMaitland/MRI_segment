@@ -43,6 +43,30 @@ class InteractiveSegment():
     def update_image(self, ax, canvas):
         ax.clear()
         ax.imshow(self.img_data[:, :, self.slice_index], cmap='bone')
+
+        # Define a list of colors for the masks
+        colors = [
+            [1, 0, 0, 0.5],  # Red
+            [0, 1, 0, 0.5],  # Green
+            [0, 0, 1, 0.5],  # Blue
+            [1, 1, 0, 0.5],  # Yellow
+            [1, 0, 1, 0.5],  # Magenta
+            [0, 1, 1, 0.5],  # Cyan
+            [0.5, 0.5, 0.5, 0.5],  # Gray
+            [1, 0.5, 0, 0.5],  # Orange
+            [0.5, 0, 1, 0.5],  # Purple
+        ]
+
+        # Overlay all saved masks with different colors
+        for i, (key, mask_info) in enumerate(self.saved_masks.items()):
+            mask = mask_info['mask']
+            if mask is not None and mask.size > 0:
+                color = colors[i % len(colors)]
+                mask_overlay = np.ma.masked_where(mask == 0, mask)
+                cmap = plt.cm.colors.ListedColormap([color])
+                ax.imshow(mask_overlay, cmap=cmap, alpha=0.5)
+
+        # Overlay the current mask with a different color
         if self.current_mask.size > 0:
             mask_overlay = np.ma.masked_where(self.current_mask == 0, self.current_mask)
             ax.imshow(mask_overlay, cmap='jet', alpha=0.5)
