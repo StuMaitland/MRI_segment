@@ -37,8 +37,8 @@ class InteractiveSegment():
         img = nib.load(self.file_path)
         # Get the image data as a numpy array
         self.img_data = img.get_fdata()
-        # img_data = np.flipud(np.fliplr(img_data))
-        # img_data = np.rot90(img_data, k=-1, axes=(0, 1))
+        img_data = np.flipud(np.fliplr(self.img_data))
+        self.img_data = np.rot90(img_data, k=-1, axes=(0, 1))
 
     def update_image(self, ax, canvas):
         ax.clear()
@@ -126,24 +126,32 @@ class InteractiveSegment():
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        self.current_mask = segment_image(self.predictor, rgb_image, self.input_point, self.input_label, self.current_mask)
+        self.current_mask = segment_image(self.predictor, rgb_image, self.input_point, self.input_label,
+                                          self.current_mask)
         self.update_image(ax, canvas)
-        canvas.draw()
 
     def on_keypress(self, event):
         if event.keysym == 'BackSpace':
             self.clear_segment()
+            self.update_image(ax, canvas)
+        elif event.keysym == 'Escape':
+            plt.close('all')
+            # Do some stuff here;calculate the cross-sectional areas of the masks and
+            # output to spreadsheet, output all masks as nii, produce a report
+            root.quit()
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
-            mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
 
             key = int(event.char)
 
             if key not in self.saved_masks:
+                mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
                 self.saved_masks[key] = {'mask': None, 'name': None}
+                self.saved_masks[key]['name'] = mask_name
 
             self.saved_masks[key]['mask'] = self.current_mask
-            self.saved_masks[key]['name'] = mask_name
+
             self.clear_segment()
+            self.update_image(ax, canvas)
 
 
 # Example usage
@@ -165,9 +173,3 @@ if __name__ == "__main__":
     print(f"Event connection ID: {cid}")
     root.mainloop()
 
-# Pseudocode for next steps:
-# Left click- add point to array, start segmentation
-# Right click- add a not-point, start segmentation
-# Press delete key- remove last point
-# Press number key- save most recent mask as that number
-# Press enter- save output of all masks
