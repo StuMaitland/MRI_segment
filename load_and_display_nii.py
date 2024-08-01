@@ -17,7 +17,9 @@ class InteractiveSegment():
     input_point = np.empty((0, 2), int)
     input_label = np.empty((0,), int)
     current_mask = np.array([])
+    current_logits = np.array([])
     saved_masks = {}
+
 
     predictor = setup_segment()
 
@@ -126,8 +128,8 @@ class InteractiveSegment():
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        self.current_mask = segment_image(self.predictor, rgb_image, self.input_point, self.input_label,
-                                          self.current_mask)
+        self.current_mask, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point, self.input_label,
+                                          self.current_logits)
         self.update_image(ax, canvas)
 
     def on_keypress(self, event):

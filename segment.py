@@ -104,16 +104,23 @@ def segment_image(predictor, image, point_cooords, point_labels, mask_input):
     input_point = np.array([point_cooords])
     input_label = np.array([point_labels])
 
-
-    masks, scores, logits = predictor.predict(
-        point_coords=input_point,
-        point_labels=input_label,
-        multimask_output=True,
-    )
+    if mask_input.size > 0:
+        masks, scores, logits = predictor.predict(
+            point_coords=input_point,
+            point_labels=input_label,
+            multimask_output=True,
+            mask_input=mask_input[None, :, :],
+        )
+    else:
+        masks, scores, logits = predictor.predict(
+            point_coords=input_point,
+            point_labels=input_label,
+            multimask_output=True,
+        )
     sorted_ind = np.argsort(scores)[::-1]
     masks = masks[sorted_ind]
     scores = scores[sorted_ind]
     logits = logits[sorted_ind]
 
     # show__best_mask(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
-    return masks[-1]  # Return mask with lowest error
+    return masks[-1], logits[-1]  # Return mask with lowest error
