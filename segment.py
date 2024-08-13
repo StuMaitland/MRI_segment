@@ -123,4 +123,4 @@ def segment_image(predictor, image, point_cooords, point_labels, mask_input):
     logits = logits[sorted_ind]
 
     # show__best_mask(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
-    return masks[-1], logits[-1]  # Return mask with lowest error
+    return masks, logits  # Return mask with lowest error

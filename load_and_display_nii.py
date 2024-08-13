@@ -61,12 +61,13 @@ class InteractiveSegment():
 
         # Overlay all saved masks with different colors
         for i, (key, mask_info) in enumerate(self.mask_names.items()):
-            mask = mask_info['mask']
-            if mask is not None and mask.size > 0:
-                color = colors[i % len(colors)]
-                mask_overlay = np.ma.masked_where(mask == 0, mask)
-                cmap = plt.cm.colors.ListedColormap([color])
-                ax.imshow(mask_overlay, cmap=cmap, alpha=0.5)
+            if 'mask' in mask_info and self.slice_index in mask_info['mask']:
+                mask = mask_info['mask'][self.slice_index]
+                if mask is not None and mask.size > 0:
+                    color = colors[i % len(colors)]
+                    mask_overlay = np.ma.masked_where(mask == 0, mask)
+                    cmap = plt.cm.colors.ListedColormap([color])
+                    ax.imshow(mask_overlay, cmap=cmap, alpha=0.5)
 
         # Overlay the current mask with a different color
         if self.current_mask.size > 0:
@@ -101,23 +102,25 @@ class InteractiveSegment():
         Returns:
         """
         for key, mask_info in self.mask_names.items():
-            mask = mask_info['mask']
-            mask_name = mask_info['name']
-            binary_mask = mask > 0
+            total_area = 0
+            for slice_index, mask in mask_info['mask'].items():
+                binary_mask = mask > 0
 
-            # Count the number of non-zero pixels
-            num_non_zero_pixels = np.sum(binary_mask)
+                # Count the number of non-zero pixels
+                num_non_zero_pixels = np.sum(binary_mask)
 
-            # Calculate the cross-sectional area
-            cross_sectional_area = num_non_zero_pixels * pixel_area
-            self.mask_names['key']['area'] = cross_sectional_area
+                # Calculate the cross-sectional area for this slice
+                cross_sectional_area = num_non_zero_pixels * pixel_area
+                total_area += cross_sectional_area
+
+            # Store the total cross-sectional area for this mask
+            self.mask_names[key]['area'] = total_area
 
     def set_mask_index(self, index):
         self.current_mask_index = index
         if index not in self.mask_names:
             mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
-            self.mask_names[index] = {'mask': None, 'name': None}
-            self.mask_names[index]['name'] = mask_name
+            self.mask_names[index] = {'mask': {}, 'name': mask_name}
 
     def on_scroll(self, event, ax, canvas):
         if event.delta > 0:
@@ -146,8 +149,7 @@ class InteractiveSegment():
             self.update_image(ax, canvas)
         elif event.keysym == 'Escape':
             plt.close('all')
-            # Do some stuff here;calculate the cross-sectional areas of the masks and
-            # output to spreadsheet, output all masks as nii, produce a report
+            self.all_cross_sectional_areas()
             root.quit()
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
 
@@ -157,7 +159,9 @@ class InteractiveSegment():
         elif event.keysym == 'Return':
 
             self.set_mask_index(self.current_mask_index)
-            self.mask_names[self.current_mask_index]['mask'] = self.current_mask
+            if 'mask' not in self.mask_names[self.current_mask_index]:
+                self.mask_names[self.current_mask_index]['mask'] = {}
+            self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_mask
 
             self.clear_segment()
             self.update_image(ax, canvas)
