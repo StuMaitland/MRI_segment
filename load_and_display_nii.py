@@ -16,10 +16,11 @@ class InteractiveSegment():
     slice_index = 0
     input_point = np.empty((0, 2), int)
     input_label = np.empty((0,), int)
-    current_mask = np.array([])
-    current_logits = np.array([])
+    current_masks = []  # List to store multiple masks
+    current_logits = []  # List to store multiple logits
     mask_names = {}
     current_mask_index = 1
+    current_display_mask_index = 0  # Index to track the currently displayed mask
 
     predictor = setup_segment()
 
@@ -70,15 +71,17 @@ class InteractiveSegment():
                     ax.imshow(mask_overlay, cmap=cmap, alpha=0.5)
 
         # Overlay the current mask with a different color
-        if self.current_mask.size > 0:
-            mask_overlay = np.ma.masked_where(self.current_mask == 0, self.current_mask)
-            ax.imshow(mask_overlay, cmap='jet', alpha=0.5)
+        if len(self.current_masks) > 0:
+            current_mask = self.current_masks[self.current_display_mask_index]
+            if current_mask.size > 0:
+                mask_overlay = np.ma.masked_where(current_mask == 0, current_mask)
+                ax.imshow(mask_overlay, cmap='jet', alpha=0.5)
 
         ax.axis('off')
         canvas.draw()
 
     def clear_segment(self):
-        self.current_mask = np.array([])
+        self.current_masks = []
         self.input_point = np.empty((0, 2), int)
         self.input_label = np.empty((0,), int)
 
@@ -103,6 +106,7 @@ class InteractiveSegment():
         """
         for key, mask_info in self.mask_names.items():
             total_area = 0
+            slice_count = 0
             for slice_index, mask in mask_info['mask'].items():
                 binary_mask = mask > 0
 
@@ -112,9 +116,11 @@ class InteractiveSegment():
                 # Calculate the cross-sectional area for this slice
                 cross_sectional_area = num_non_zero_pixels * pixel_area
                 total_area += cross_sectional_area
+                slice_count += 1
 
-            # Store the total cross-sectional area for this mask
-            self.mask_names[key]['area'] = total_area
+            # Calculate the mean cross-sectional area for this mask
+            mean_area = total_area / slice_count if slice_count > 0 else 0
+            self.mask_names[key]['area'] = mean_area
 
     def set_mask_index(self, index):
         self.current_mask_index = index
@@ -138,9 +144,9 @@ class InteractiveSegment():
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        self.current_mask, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point,
-                                                               self.input_label,
-                                                               self.current_logits)
+        self.current_masks, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point,
+                                                                self.input_label, self.current_logits)
+
         self.update_image(ax, canvas)
 
     def on_keypress(self, event):
@@ -152,19 +158,27 @@ class InteractiveSegment():
             self.all_cross_sectional_areas()
             root.quit()
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
-
             key = int(event.char)
             self.set_mask_index(key)
-
         elif event.keysym == 'Return':
-
             self.set_mask_index(self.current_mask_index)
             if 'mask' not in self.mask_names[self.current_mask_index]:
                 self.mask_names[self.current_mask_index]['mask'] = {}
-            self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_mask
-
+            self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_masks[self.current_display_mask_index]
             self.clear_segment()
             self.update_image(ax, canvas)
+        elif event.keysym == 'Left':
+            self.current_display_mask_index = (self.current_display_mask_index - 1) % len(self.current_masks)
+            self.update_image(ax, canvas)
+        elif event.keysym == 'Right':
+            self.current_display_mask_index = (self.current_display_mask_index + 1) % len(self.current_masks)
+            self.update_image(ax, canvas)
+        elif event.keysym == 'Up':
+            event.delta = 1
+            self.on_scroll(event, ax, canvas)
+        elif event.keysym == 'Down':
+            event.delta = -1
+            self.on_scroll(event, ax, canvas)
 
 
 # Example usage
