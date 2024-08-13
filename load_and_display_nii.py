@@ -4,6 +4,7 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
+import os
 
 import segment
 from segment import segment_image, setup_segment
@@ -122,6 +123,22 @@ class InteractiveSegment():
             mean_area = total_area / slice_count if slice_count > 0 else 0
             self.mask_names[key]['area'] = mean_area
 
+    def export_masks_to_nifti(self, output_dir):
+        for key, mask_info in self.mask_names.items():
+            # Create a 3D array to store the mask across all slices
+            mask_3d = np.zeros(self.img_data.shape, dtype=np.uint8)
+
+            for slice_index, mask in mask_info['mask'].items():
+                mask_3d[:, :, slice_index] = mask
+
+            # Create a NIfTI image from the 3D mask array
+            nifti_img = nib.Nifti1Image(mask_3d, np.eye(4))
+
+            # Save the NIfTI image to a file
+            mask_name = mask_info.get('name', f'mask_{key}')
+            output_path = f"{output_dir}/{mask_name}.nii"
+            nib.save(nifti_img, output_path)
+
     def set_mask_index(self, index):
         self.current_mask_index = index
         if index not in self.mask_names:
@@ -156,6 +173,7 @@ class InteractiveSegment():
         elif event.keysym == 'Escape':
             plt.close('all')
             self.all_cross_sectional_areas()
+            self.export_masks_to_nifti(os.path.dirname(self.file_path))
             root.quit()
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
             key = int(event.char)
@@ -164,7 +182,8 @@ class InteractiveSegment():
             self.set_mask_index(self.current_mask_index)
             if 'mask' not in self.mask_names[self.current_mask_index]:
                 self.mask_names[self.current_mask_index]['mask'] = {}
-            self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_masks[self.current_display_mask_index]
+            self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_masks[
+                self.current_display_mask_index]
             self.clear_segment()
             self.update_image(ax, canvas)
         elif event.keysym == 'Left':
