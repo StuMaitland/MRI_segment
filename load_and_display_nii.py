@@ -117,7 +117,11 @@ class InteractiveSegment():
                 # Calculate the cross-sectional area for this slice
                 cross_sectional_area = num_non_zero_pixels * pixel_area
                 total_area += cross_sectional_area
-                slice_count += 1
+
+                # Only increment the slice count if the mask is found on this slice
+                # Ie average of slices where the muscle is found only
+                if num_non_zero_pixels > 0:
+                    slice_count += 1
 
             # Calculate the mean cross-sectional area for this mask
             mean_area = total_area / slice_count if slice_count > 0 else 0
@@ -219,7 +223,3 @@ if __name__ == "__main__":
     print(f"Event connection ID: {cid}")
     root.mainloop()
 
-# TODO next
-# 1. change so that 1-9 sets current label mode to that digit, then enter to save current mask
-# 2. Scroll to next slice then use logits from previous slice's mask as input to next slice
-# 3. Repeat for all slices. Need to get nearest mask logits for each slice

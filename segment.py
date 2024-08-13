@@ -92,7 +92,7 @@ def setup_segment():
     sam2_checkpoint = "/Users/stuartbman/GitHub/MRI_segment/checkpoints/sam2_hiera_large.pt"
     model_cfg = "sam2_hiera_l.yaml"
 
-    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="cpu")
+    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
 
     predictor = SAM2ImagePredictor(sam2_model)
     return predictor
