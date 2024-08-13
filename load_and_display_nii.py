@@ -18,8 +18,8 @@ class InteractiveSegment():
     input_label = np.empty((0,), int)
     current_mask = np.array([])
     current_logits = np.array([])
-    saved_masks = {}
-
+    mask_names = {}
+    current_mask_index = 1
 
     predictor = setup_segment()
 
@@ -60,7 +60,7 @@ class InteractiveSegment():
         ]
 
         # Overlay all saved masks with different colors
-        for i, (key, mask_info) in enumerate(self.saved_masks.items()):
+        for i, (key, mask_info) in enumerate(self.mask_names.items()):
             mask = mask_info['mask']
             if mask is not None and mask.size > 0:
                 color = colors[i % len(colors)]
@@ -100,7 +100,7 @@ class InteractiveSegment():
 
         Returns:
         """
-        for key, mask_info in self.saved_masks.items():
+        for key, mask_info in self.mask_names.items():
             mask = mask_info['mask']
             mask_name = mask_info['name']
             binary_mask = mask > 0
@@ -110,7 +110,14 @@ class InteractiveSegment():
 
             # Calculate the cross-sectional area
             cross_sectional_area = num_non_zero_pixels * pixel_area
-            self.saved_masks['key']['area'] = cross_sectional_area
+            self.mask_names['key']['area'] = cross_sectional_area
+
+    def set_mask_index(self, index):
+        self.current_mask_index = index
+        if index not in self.mask_names:
+            mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
+            self.mask_names[index] = {'mask': None, 'name': None}
+            self.mask_names[index]['name'] = mask_name
 
     def on_scroll(self, event, ax, canvas):
         if event.delta > 0:
@@ -128,8 +135,9 @@ class InteractiveSegment():
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        self.current_mask, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point, self.input_label,
-                                          self.current_logits)
+        self.current_mask, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point,
+                                                               self.input_label,
+                                                               self.current_logits)
         self.update_image(ax, canvas)
 
     def on_keypress(self, event):
@@ -144,13 +152,12 @@ class InteractiveSegment():
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
 
             key = int(event.char)
+            self.set_mask_index(key)
 
-            if key not in self.saved_masks:
-                mask_name = tk.simpledialog.askstring("Input", "Enter mask name:")
-                self.saved_masks[key] = {'mask': None, 'name': None}
-                self.saved_masks[key]['name'] = mask_name
+        elif event.keysym == 'Return':
 
-            self.saved_masks[key]['mask'] = self.current_mask
+            self.set_mask_index(self.current_mask_index)
+            self.mask_names[self.current_mask_index]['mask'] = self.current_mask
 
             self.clear_segment()
             self.update_image(ax, canvas)
@@ -175,3 +182,7 @@ if __name__ == "__main__":
     print(f"Event connection ID: {cid}")
     root.mainloop()
 
+# TODO next
+# 1. change so that 1-9 sets current label mode to that digit, then enter to save current mask
+# 2. Scroll to next slice then use logits from previous slice's mask as input to next slice
+# 3. Repeat for all slices. Need to get nearest mask logits for each slice
