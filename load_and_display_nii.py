@@ -164,6 +164,24 @@ class InteractiveSegment():
             self.input_label = np.append(self.input_label, 1)
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
+
+        # Check if current_logits is empty
+        if not np.any(self.current_logits):
+            # Check if the current mask index exists in mask_names
+            if self.current_mask_index in self.mask_names:
+                # Look for the nearest slice with a saved mask for the current mask index
+                nearest_slice = None
+                min_distance = float('inf')
+                for slice_index in self.mask_names[self.current_mask_index]['mask']:
+                    distance = abs(slice_index - self.slice_index)
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest_slice = slice_index
+
+                # If a saved mask is found, use its logits
+                if nearest_slice is not None:
+                    self.current_logits = [self.mask_names[self.current_mask_index]['logits']]
+
         rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
         self.current_masks, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point,
                                                                 self.input_label, self.current_logits)
@@ -188,6 +206,7 @@ class InteractiveSegment():
                 self.mask_names[self.current_mask_index]['mask'] = {}
             self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_masks[
                 self.current_display_mask_index]
+            self.mask_names[self.current_mask_index]['logits'] = self.current_logits[self.current_display_mask_index]
             self.clear_segment()
             self.update_image(ax, canvas)
         elif event.keysym == 'Left':
