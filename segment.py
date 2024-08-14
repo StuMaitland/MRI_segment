@@ -2,8 +2,9 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-from sam2.build_sam import build_sam2
+from sam2.build_sam import build_sam2, build_sam2_video_predictor
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+from sam2.sam2_video_predictor import SAM2VideoPredictor
 
 
 # use bfloat16 for the entire notebook
@@ -98,6 +99,14 @@ def setup_segment():
     return predictor
 
 
+def setup_video_segment():
+    sam2_checkpoint = "/Users/stuartbman/GitHub/MRI_segment/checkpoints/sam2_hiera_large.pt"
+    model_cfg = "sam2_hiera_l.yaml"
+
+    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device="mps")
+    return predictor
+
+
 def segment_image(predictor, image, point_coords, point_labels, mask_input):
     predictor.set_image(image)
 
@@ -123,3 +132,37 @@ def segment_image(predictor, image, point_coords, point_labels, mask_input):
     logits = logits[sorted_ind]
 
     return masks, logits
+
+
+def segment_frame(predictor, inference, frame_index, points, point_labels, obj_id):
+    """
+    Segments a frame of a video
+    :param predictor: SAM2VideoPredictor object
+    :param inference: Inference State
+    :param frame_index:
+    :param points:
+    :param point_labels:
+    :param obj_id:
+    :return:
+    """
+    _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+        inference_state=inference,
+        frame_idx=frame_index,
+        obj_id=obj_id,
+        points=points,
+        labels=point_labels,
+    )
+
+    out_mask = (out_mask_logits[0] > 0.0).cpu().numpy()
+
+    return out_mask, out_mask_logits
+
+
+def propagate_segment(predictor, inference_state):
+    video_segments = {}  # video_segments contains the per-frame segmentation results
+    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
+        video_segments[out_frame_idx] = {
+            out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+            for i, out_obj_id in enumerate(out_obj_ids)
+        }
+    return video_segments

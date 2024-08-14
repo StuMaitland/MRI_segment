@@ -6,8 +6,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import os
 
-import segment
-from segment import segment_image, setup_segment
+from segment import segment_image, setup_segment, setup_video_segment, segment_frame, propagate_segment
+from nii_to_jpeg import convert_nii_to_jpegs
 
 
 class InteractiveSegment():
@@ -23,10 +23,15 @@ class InteractiveSegment():
     current_mask_index = 1
     current_display_mask_index = 0  # Index to track the currently displayed mask
 
-    predictor = setup_segment()
+    predictor = setup_video_segment()
 
     def __init__(self):
         self.file_path = self.select_nii_file()
+        convert_nii_to_jpegs(self.file_path)
+        parent_folder = os.path.dirname(self.file_path)
+        jpeg_slices_folder = os.path.join(parent_folder, 'jpeg_slices')
+
+        self.inference_state = self.predictor.init_state(video_path=jpeg_slices_folder)
 
     def select_nii_file(self):
         root = tk.Tk()
@@ -69,14 +74,14 @@ class InteractiveSegment():
                     color = colors[i % len(colors)]
                     mask_overlay = np.ma.masked_where(mask == 0, mask)
                     cmap = plt.cm.colors.ListedColormap([color])
-                    ax.imshow(mask_overlay, cmap=cmap, alpha=0.5)
+                    ax.imshow(mask_overlay.squeeze(), cmap=cmap, alpha=0.5)  # Ensure correct shape
 
         # Overlay the current mask with a different color
         if len(self.current_masks) > 0:
             current_mask = self.current_masks[self.current_display_mask_index]
             if current_mask.size > 0:
                 mask_overlay = np.ma.masked_where(current_mask == 0, current_mask)
-                ax.imshow(mask_overlay, cmap='jet', alpha=0.5)
+                ax.imshow(mask_overlay.squeeze(), cmap='jet', alpha=0.5)  # Ensure correct shape
 
         ax.axis('off')
         canvas.draw()
@@ -143,6 +148,19 @@ class InteractiveSegment():
             output_path = f"{output_dir}/{mask_name}.nii"
             nib.save(nifti_img, output_path)
 
+    def propagate_masks(self):
+        # Call the propagate_segment function
+        video_segments = propagate_segment(self.predictor, self.inference_state)
+
+        # Ensure the current mask index exists in mask_names
+        if self.current_mask_index not in self.mask_names:
+            self.mask_names[self.current_mask_index] = {'mask': {}}
+
+        # Store the resulting masks in self.mask_names['mask'] for every slice index
+        for slice_index, mask_info in video_segments.items():
+            for obj_id, mask in mask_info.items():
+                self.mask_names[self.current_mask_index]['mask'][slice_index] = mask
+
     def set_mask_index(self, index):
         self.current_mask_index = index
         if index not in self.mask_names:
@@ -165,27 +183,9 @@ class InteractiveSegment():
         elif event.button == 3:  # Right click
             self.input_label = np.append(self.input_label, 0)
 
-        # Check if current_logits is empty
-        if not np.any(self.current_logits):
-            # Check if the current mask index exists in mask_names
-            if self.current_mask_index in self.mask_names:
-                # Look for the nearest slice with a saved mask for the current mask index
-                nearest_slice = None
-                min_distance = float('inf')
-                for slice_index in self.mask_names[self.current_mask_index]['mask']:
-                    distance = abs(slice_index - self.slice_index)
-                    if distance < min_distance:
-                        min_distance = distance
-                        nearest_slice = slice_index
-
-                # If a saved mask is found, use its logits
-                if nearest_slice is not None:
-                    self.current_logits = [self.mask_names[self.current_mask_index]['logits']]
-
-        rgb_image = self.convert_to_rgb(self.img_data[:, :, self.slice_index])
-        self.current_masks, self.current_logits = segment_image(self.predictor, rgb_image, self.input_point,
-                                                                self.input_label, self.current_logits)
-
+        self.current_masks, self.current_logits = segment_frame(self.predictor, self.inference_state, self.slice_index,
+                                                                self.input_point, self.input_label,
+                                                                self.current_mask_index)
         self.update_image(ax, canvas)
 
     def on_keypress(self, event):
@@ -198,23 +198,20 @@ class InteractiveSegment():
             self.export_masks_to_nifti(os.path.dirname(self.file_path))
             root.quit()
         elif event.char.isdigit() and 1 <= int(event.char) <= 9:
+            self.predictor.reset_state(self.inference_state)
             key = int(event.char)
             self.set_mask_index(key)
         elif event.keysym == 'Return':
-            self.set_mask_index(self.current_mask_index)
-            if 'mask' not in self.mask_names[self.current_mask_index]:
-                self.mask_names[self.current_mask_index]['mask'] = {}
+            self.propagate_masks()
+            self.clear_segment()
+        elif event.keysym == 'space':
+            # Save current mask and logits
+            if self.current_mask_index not in self.mask_names:
+                self.mask_names[self.current_mask_index] = {'mask': {}, 'logits': {}}
             self.mask_names[self.current_mask_index]['mask'][self.slice_index] = self.current_masks[
                 self.current_display_mask_index]
-            self.mask_names[self.current_mask_index]['logits'] = self.current_logits[self.current_display_mask_index]
-            self.clear_segment()
-            self.update_image(ax, canvas)
-        elif event.keysym == 'Left':
-            self.current_display_mask_index = (self.current_display_mask_index - 1) % len(self.current_masks)
-            self.update_image(ax, canvas)
-        elif event.keysym == 'Right':
-            self.current_display_mask_index = (self.current_display_mask_index + 1) % len(self.current_masks)
-            self.update_image(ax, canvas)
+            self.mask_names[self.current_mask_index]['logits'][self.slice_index] = self.current_logits[
+                self.current_display_mask_index]
         elif event.keysym == 'Up':
             event.delta = 1
             self.on_scroll(event, ax, canvas)
@@ -241,4 +238,3 @@ if __name__ == "__main__":
 
     print(f"Event connection ID: {cid}")
     root.mainloop()
-
