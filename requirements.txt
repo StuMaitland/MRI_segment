@@ -22,6 +22,7 @@ portalocker==2.10.1
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 PyYAML==6.0.1
+SAM-2 @ file:///Users/stuartbman/GitHub/segment-anything-2
 six==1.16.0
 sympy==1.13.1
 torch==2.4.0

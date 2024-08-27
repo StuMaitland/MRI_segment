@@ -89,21 +89,19 @@ def show__best_mask(image, masks, scores, point_coords=None, box_coords=None, in
     plt.show()
 
 
-def setup_segment():
-    sam2_checkpoint = "/Users/stuartbman/GitHub/MRI_segment/checkpoints/sam2_hiera_large.pt"
+def setup_segment(sam2_checkpoint):
     model_cfg = "sam2_hiera_l.yaml"
-
-    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 
     predictor = SAM2ImagePredictor(sam2_model)
     return predictor
 
 
-def setup_video_segment():
-    sam2_checkpoint = "/Users/stuartbman/GitHub/MRI_segment/checkpoints/sam2_hiera_large.pt"
+def setup_video_segment(sam2_checkpoint):
     model_cfg = "sam2_hiera_l.yaml"
-
-    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device="mps")
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
     return predictor
 
 

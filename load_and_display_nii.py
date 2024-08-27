@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import Tk, filedialog
 import nibabel as nib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -23,7 +23,16 @@ class InteractiveSegment():
     current_mask_index = 1
     current_display_mask_index = 0  # Index to track the currently displayed mask
 
-    predictor = setup_video_segment()
+    sam2_checkpoint = os.getenv('SAM2_CHECKPOINT')
+    if not sam2_checkpoint:
+        root = Tk()
+        root.withdraw()  # Hide the root window
+        sam2_checkpoint = filedialog.askopenfilename(
+            title="Select SAM2 Checkpoint",
+            filetypes=[("Checkpoint files", "*.pt"), ("All files", "*.*")]
+        )
+        root.destroy()
+    predictor = setup_video_segment(sam2_checkpoint)
 
     def __init__(self):
         self.file_path = self.select_nii_file()
