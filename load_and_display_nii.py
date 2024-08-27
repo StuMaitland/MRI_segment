@@ -43,9 +43,14 @@ class InteractiveSegment():
 
     def load_nii_file(self):
         # Load the .nii file
-        img = nib.load(self.file_path)
+        self.nii_data = nib.load(self.file_path)
         # Get the image data as a numpy array
-        self.img_data = img.get_fdata()
+        self.img_data = self.nii_data.get_fdata()
+
+        # If it has a fourth dimension then it's a Dixon so select the second channel
+        if self.img_data.ndim == 4:
+            self.img_data = self.img_data[:, :, :, 1]
+
         img_data = np.flipud(np.fliplr(self.img_data))
         self.img_data = np.rot90(img_data, k=-1, axes=(0, 1))
 
@@ -133,15 +138,21 @@ class InteractiveSegment():
             self.mask_names[key]['area'] = mean_area
 
     def export_masks_to_nifti(self, output_dir):
+
+        affine = self.nii_data.affine
+        header = self.nii_data.header
+
         for key, mask_info in self.mask_names.items():
             # Create a 3D array to store the mask across all slices
             mask_3d = np.zeros(self.img_data.shape, dtype=np.uint8)
 
             for slice_index, mask in mask_info['mask'].items():
+                mask = mask.squeeze()
+                mask = np.rot90(mask, k=-1, axes=(0, 1))
                 mask_3d[:, :, slice_index] = mask
 
             # Create a NIfTI image from the 3D mask array
-            nifti_img = nib.Nifti1Image(mask_3d, np.eye(4))
+            nifti_img = nib.Nifti1Image(mask_3d, affine, header)
 
             # Save the NIfTI image to a file
             mask_name = mask_info.get('name', f'mask_{key}')
@@ -150,7 +161,7 @@ class InteractiveSegment():
 
     def propagate_masks(self):
         # Call the propagate_segment function
-        video_segments = propagate_segment(self.predictor, self.inference_state)
+        video_segments = propagate_segment(self.predictor, self.inference_state, self.slice_index)
 
         # Ensure the current mask index exists in mask_names
         if self.current_mask_index not in self.mask_names:

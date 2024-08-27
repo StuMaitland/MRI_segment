@@ -25,13 +25,16 @@ def create_output_folder(nii_file_path):
 
 
 def convert_slices_to_jpegs(nii_data, output_folder):
-    num_slices = nii_data.shape[2]
-    for i in range(num_slices):
+    for i in range(nii_data.shape[2]):
         slice_data = nii_data[:, :, i]
-        img_data = np.flipud(np.fliplr(slice_data))
-        slice_data = np.rot90(img_data, k=-1, axes=(0, 1))
-        slice_data_normalized = cv2.normalize(slice_data, None, 0, 255, cv2.NORM_MINMAX)
-        slice_data_uint8 = slice_data_normalized.astype(np.uint8)
+
+        # If the slice has another channel, its a Dixon file, only get the second channel of that slice
+        if len(slice_data.shape) == 3:
+            slice_data = slice_data[:, :, 1]  # Select the second index of the third dimension
+        slice_data = np.flipud(np.fliplr(slice_data))
+        slice_data = np.rot90(slice_data, k=-1, axes=(0, 1))
+        slice_data_uint8 = cv2.normalize(slice_data, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
         output_path = os.path.join(output_folder, f"{i:03d}.jpg")
         cv2.imwrite(output_path, slice_data_uint8)
 

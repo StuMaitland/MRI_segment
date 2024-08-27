@@ -158,11 +158,21 @@ def segment_frame(predictor, inference, frame_index, points, point_labels, obj_i
     return out_mask, out_mask_logits
 
 
-def propagate_segment(predictor, inference_state):
+def propagate_segment(predictor, inference_state, current_frame_idx):
     video_segments = {}  # video_segments contains the per-frame segmentation results
-    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
+
+    # Forward propagation from the current frame to the end
+    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state, start_frame_idx=current_frame_idx, reverse=False):
         video_segments[out_frame_idx] = {
             out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
             for i, out_obj_id in enumerate(out_obj_ids)
         }
+
+    # Backward propagation from the current frame to the start
+    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state, start_frame_idx=current_frame_idx, reverse=True):
+        video_segments[out_frame_idx] = {
+            out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+            for i, out_obj_id in enumerate(out_obj_ids)
+        }
+
     return video_segments
